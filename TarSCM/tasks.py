@@ -175,6 +175,7 @@ class Tasks():
             args.url = "https://github.com/"
             args.url += dat['pull_request']['head']['repo']['full_name']
             args.revision = dat['pull_request']['head']['sha']
+           # args.target_repository_url = "https://github.com/" + dat['target_repository_full_name'] + ".git"
 
         return args
 

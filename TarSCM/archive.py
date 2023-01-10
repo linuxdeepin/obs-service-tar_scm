@@ -242,19 +242,40 @@ class Tar(BaseArchive):
 
         os.chdir(cwd)
 
-
 class Gbp(BaseArchive):
 
     def create_archive(self, scm_object, **kwargs):
         """Create Debian source artefacts using git-buildpackage.
         """
-        args = kwargs['cli']
-        version = kwargs['version']
-
+        basename         = kwargs['basename']
+        version          = kwargs['version']
+        args             = kwargs['cli']
+        commit           = scm_object.get_current_commit()
+        branch           = scm_object.get_current_branch()
         (workdir, topdir) = os.path.split(scm_object.clone_dir)
+        tstamp = self.helpers.get_timestamp(scm_object, args, topdir)
 
         cwd = os.getcwd()
         os.chdir(workdir)
+        
+        if os.path.exists(scm_object.clone_dir + "/debian/gbp.conf"):
+            logging.info("removing gbp.conf")
+            os.remove(scm_object.clone_dir + "/debian/gbp.conf")
+
+        #upstreamversion = version.split('-')[0]
+        upstreamversion_end = version.rfind('-')
+        upstreamversion = version[:upstreamversion_end]
+        if upstreamversion.__contains__(':'):
+            upstreamversion = upstreamversion.split(':')[1]
+        if upstreamversion.__contains__('~'):
+            upstreamversion = upstreamversion.replace('~', '_')
+
+        upstreamversion = "obsbuild/" + upstreamversion
+
+        logging.info("upstream version: %s" % upstreamversion)
+
+        cmd = ['git', 'tag', upstreamversion]
+        rcode,res = self.helpers.run_cmd(cmd, scm_object.clone_dir)
 
         if not args.revision:
             revision = 'origin/master'
@@ -262,7 +283,7 @@ class Gbp(BaseArchive):
             revision = 'origin/' + args.revision
 
         command = ['gbp', 'buildpackage', '--git-notify=off',
-                   '--git-force-create', '--git-cleaner="true"']
+                   '--git-force-create', '--git-cleaner="true"', '--git-upstream-tag=obsbuild/%(version)s']
 
         # we are not on a proper local branch due to using git-reset but we
         # anyway use the --git-export option
@@ -355,9 +376,11 @@ class Gbp(BaseArchive):
             logging.info("Files:")
             for line in match.strip().split("\n"):
                 fname = line.strip().split(' ')[2]
-                logging.info(" %s", fname)
                 input_file = os.path.join(workdir, fname)
                 output_file = os.path.join(args.outdir, fname)
+                if not os.path.exists(input_file):
+                    continue
+                logging.info(" %s", fname)
 
                 filename_matches_dsc = fnmatch.fnmatch(fname, '*.dsc')
                 if (args.gbp_dch_release_update and filename_matches_dsc):
@@ -369,4 +392,18 @@ class Gbp(BaseArchive):
 
                 shutil.copy(input_file, output_file)
 
+        # write meta data
+        infofile = os.path.join(args.outdir, basename + '.obsinfo')
+        logging.debug("Writing to obsinfo file '%s'", infofile)
+        metafile = open(infofile, "w")
+        metafile.write("name: " + basename + "\n")
+        metafile.write("branch: " + branch + "\n")
+        metafile.write("version: " + version + "\n")
+        metafile.write("mtime: " + str(tstamp) + "\n")
+
+        if commit:
+            metafile.write("commit: " + commit + "\n")
+
+        metafile.close()
+        self.metafile       = metafile.name
         os.chdir(cwd)

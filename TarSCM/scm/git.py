@@ -147,6 +147,15 @@ class Git(Scm):
         except SystemExit as exc:
             os.removedirs(os.path.join(wdir, self.clone_dir))
             raise exc
+        #if self.args.target_repository_url:
+        #    add_upstream_command = self._get_scm_cmd() + ['remote', 'add', 'upstream', self.args.target_repository_url]
+        #    self.helpers.safe_run(
+        #        add_upstream_command, cwd=self.clone_dir, interactive=sys.stdout.isatty()
+        #    )
+        #    fetch_tags_command = self._get_scm_cmd() + ['remote', 'update']
+        #    self.helpers.safe_run(
+        #        fetch_tags_command, cwd=self.clone_dir, interactive=sys.stdout.isatty()
+        #    )
         if self.partial_clone:
             config_command = self._get_scm_cmd() + ['config', '--local',
                                                     'extensions.partialClone',
@@ -285,6 +294,17 @@ class Git(Scm):
             versionformat = self._detect_version_tag_offset(
                 self._parent_tag,
                 versionformat)
+
+        if re.match('.*@CHANGELOG@.*', versionformat):
+            versionformat = self._read_changelog_verson(
+                self._parent_tag,
+                versionformat
+            )
+        if re.match('.*@DEEPIN_OFFSET@.*', versionformat):
+            versionformat = self._detect_deepin_version_offset(
+                versionformat
+            )
+
         log_cmd = self._get_scm_cmd() + ['log', '-n1', '--date=format:%Y%m%d',
                                          '--no-show-signature',
                                          "--pretty=format:%s" % versionformat]
@@ -340,6 +360,45 @@ class Git(Scm):
 
         tag_offset = out.strip()
         versionformat = re.sub('@TAG_OFFSET@', tag_offset,
+                               versionformat)
+        return versionformat
+
+    def _read_changelog_verson(self, parent_tag, versionformat):
+        cmd = ["dpkg-parsechangelog", "-S", "Version"]
+        rcode, out = self.helpers.run_cmd(cmd, self.clone_dir)
+        if rcode:
+            msg = "\033[31m@CHANGELOG@ can not be expanded: {}\033[0m"
+            msg = msg.format(out)
+            sys.exit(msg)
+        version = out.strip()
+        versionformat = re.sub('@CHANGELOG@', version,
+                                versionformat)
+        return versionformat
+
+    def _detect_deepin_version_offset(self, versionformat):
+        cmd = self._get_scm_cmd()
+        cmd.extend(["log", "--pretty=oneline", "-n1", "debian/changelog"])
+        rcode, out = self.helpers.safe_run(cmd, self.clone_dir)
+        if rcode:
+            msg = "\033[31m@DEEPIN_OFFSET@ can not be expanded: {}\033[0m"
+            msg = msg.format(out)
+            sys.exit(msg)
+        changelogid = out.strip().split('\n')[-1].split(' ')[0]
+        cmd = self._get_scm_cmd()
+        cmd.extend(['rev-list', '--count', changelogid + '..HEAD'])
+        rcode, out = self.helpers.run_cmd(
+            cmd=cmd, cwd=self.clone_dir
+        )
+        if rcode:
+            msg = "\033[31m@DEEPIN_OFFSET@ can not be expanded: {}\033[0m"
+            msg = msg.format(out)
+            sys.exit(msg)
+        deepin_offset = out.strip()
+        if not deepin_offset.__eq__('0'):
+            deepin_offset = '+u' + deepin_offset.rjust(3,'0')
+        else:
+            deepin_offset = ""
+        versionformat = re.sub('@DEEPIN_OFFSET@', deepin_offset,
                                versionformat)
         return versionformat
 

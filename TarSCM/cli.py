@@ -58,6 +58,7 @@ class Cli():
         self.user = None
         self.keyring_passphrase = None
         self.changesgenerate = False
+        #  self.target_repository_url = None
 
     def parse_args(self, options):
         parser = argparse.ArgumentParser(description='Git Tarballs')

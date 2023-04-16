@@ -262,6 +262,10 @@ class Gbp(BaseArchive):
             logging.info("removing gbp.conf")
             os.remove(scm_object.clone_dir + "/debian/gbp.conf")
 
+        # ignore debian directory
+        with open(scm_object.clone_dir + ".git/info/attributes", "a+") as f
+            f.write("debian/ export-ignore\n")
+
         #upstreamversion = version.split('-')[0]
         upstreamversion_end = version.rfind('-')
         upstreamversion = version[:upstreamversion_end]

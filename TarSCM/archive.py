@@ -264,7 +264,7 @@ class Gbp(BaseArchive):
 
         # ignore debian directory
         with open(os.path.join(scm_object.clone_dir, ".git/info/attributes"), "a+") as f:
-            f.write("debian/ export-ignore\n")
+            f.write("./debian/ export-ignore\n")
 
         #upstreamversion = version.split('-')[0]
         upstreamversion_end = version.rfind('-')

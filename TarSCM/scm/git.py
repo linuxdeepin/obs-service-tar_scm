@@ -370,7 +370,7 @@ class Git(Scm):
             msg = "\033[31m@CHANGELOG@ can not be expanded: {}\033[0m"
             msg = msg.format(out)
             sys.exit(msg)
-        version = out.strip()
+        version = out.strip().split('\n')[-1]
         versionformat = re.sub('@CHANGELOG@', version,
                                 versionformat)
         return versionformat
